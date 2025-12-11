@@ -12,7 +12,7 @@ Un jeu de combat RPG en Python avec interface graphique Tkinter. Le joueur chois
 
 ## Description
 
-Le jeu propose un système simple de combats au tour par tour : le joueur attaque, se soigne ou subit l'attaque de l'ennemi. Après chaque victoire, le joueur choisit un objet parmi trois tirés aléatoirement, ce qui améliore ses statistiques (attaque, défense, points de vie maximum, etc.).
+Le jeu propose un système simple de combats au tour par tour : le joueur attaque, se soigne et subit l'attaque de l'ennemi. Après chaque victoire, le joueur choisit un objet parmi trois tirés aléatoirement, ce qui améliore ses statistiques (attaque, défense, points de vie maximum, etc.).
 
 ## Fonctionnalités
 
