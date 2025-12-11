@@ -4,6 +4,13 @@ import json
 import os
 import random
 
+# Définition des classes et de leurs statistiques
+CLASSES = {
+    "Barbare": {"pv": 85, "attaque": 17, "defense": 5},
+    "Mage": {"pv": 90, "attaque": 20, "defense": 5},
+    "Archer": {"pv": 100, "attaque": 15, "defense": 7}
+}
+
 class Character:
     def __init__(self, nom, pv, attaque, defense):
         self.nom = nom
@@ -47,6 +54,11 @@ class Enemy(Character):
     def __init__(self, nom, pv, attaque, defense):
         super().__init__(nom, pv, attaque, defense)
 
+    def attack_target(self, target, bonus=0):
+        degats = max(1, self.attaque + bonus - target.defense)
+        target.pv -= degats
+        return degats
+
 class Boss(Enemy):
     def __init__(self, nom, pv, attaque, defense):
         super().__init__(nom, pv, attaque, defense)
@@ -67,7 +79,7 @@ class Boss(Enemy):
             degats = max(1, self.attaque * 2 - target.defense)
             target.pv -= degats
             self.cooldowns["ultime"] = 2
-            return f"{self.nom} utilise une attaque ultime et inflige {degats} dégâts !"
+            return f"{self.nom} utilise une attaque ultime et inflige {degâts} dégâts !"
         elif choix == "soin" and self.cooldowns["soin"] == 0:
             soin = 25
             self.pv = min(self.pv_max, self.pv + soin)
@@ -76,7 +88,7 @@ class Boss(Enemy):
         else:
             degats = max(1, self.attaque - target.defense)
             target.pv -= degats
-            return f"{self.nom} utilise une attaque simple et inflige {degats} dégâts."
+            return f"{self.nom} utilise une attaque simple et inflige {degâts} dégâts."
 
 class GameEngine:
     def __init__(self):
@@ -86,7 +98,7 @@ class GameEngine:
             Enemy("Orc", 75, 19, 8),
             Enemy("Troll", 120, 28, 12),
         ]
-        self.boss = Boss("Dragon", 200, 35, 20)
+        self.boss = Boss("Dragon", 200, 30, 15)
         self.objets_donnes = []
         self.combat_en_cours = None
         self.victoires = 0
@@ -207,6 +219,15 @@ class GameGUI:
         self.label_joueur.pack(pady=10)
         self.entry_nom = tk.Entry(self.window)
         self.entry_nom.pack()
+
+        self.label_classe = tk.Label(self.window, text="Choisissez une classe :")
+        self.label_classe.pack(pady=10)
+
+        self.classe_var = tk.StringVar()
+        for classe in CLASSES.keys():
+            rb = tk.Radiobutton(self.window, text=classe, variable=self.classe_var, value=classe)
+            rb.pack()
+
         self.button_nouveau = tk.Button(self.window, text="Nouvelle partie", command=self.nouvelle_partie)
         self.button_nouveau.pack(pady=5)
         self.button_charger = tk.Button(self.window, text="Charger une sauvegarde", command=self.charger_partie)
@@ -218,23 +239,6 @@ class GameGUI:
 
         self.combat_frame = tk.Frame(self.window)
         self.combat_frame.pack_forget()
-
-        self.label_stats = tk.Label(self.combat_frame, text="", justify="left")
-        self.label_stats.pack(pady=10)
-
-        self.label_ennemi = tk.Label(self.combat_frame, text="", justify="left")
-        self.label_ennemi.pack(pady=10)
-
-        self.label_log = tk.Label(self.combat_frame, text="", justify="left")
-        self.label_log.pack(pady=10)
-
-        self.button_attaquer = tk.Button(self.combat_frame, text="Attaquer", command=self.attaquer)
-        self.button_attaquer.pack(pady=5)
-        self.button_soin = tk.Button(self.combat_frame, text="Soigner", command=self.soin)
-        self.button_soin.pack(pady=5)
-        self.button_quitter = tk.Button(self.combat_frame, text="Quitter", command=self.quitter)
-        self.button_quitter.pack(pady=5)
-
         self.choix_frame = tk.Frame(self.window)
         self.choix_frame.pack_forget()
 
@@ -246,10 +250,16 @@ class GameGUI:
 
     def nouvelle_partie(self):
         nom = self.entry_nom.get().strip()
+        classe = self.classe_var.get()
         if not nom:
             messagebox.showerror("Erreur", "Veuillez entrer un nom.")
             return
-        self.game.joueur = Character(nom, 100, 15, 10)
+        if not classe:
+            messagebox.showerror("Erreur", "Veuillez choisir une classe.")
+            return
+
+        stats = CLASSES[classe]
+        self.game.joueur = Character(nom, stats["pv"], stats["attaque"], stats["defense"])
         self.start_game()
 
     def charger_partie(self):
@@ -272,13 +282,43 @@ class GameGUI:
         self.load_saves()
 
     def start_game(self):
+        # Masquer les widgets du menu
         self.label_joueur.pack_forget()
         self.entry_nom.pack_forget()
+        self.label_classe.pack_forget()
+        for widget in self.window.winfo_children():
+            if isinstance(widget, tk.Radiobutton):
+                widget.pack_forget()
         self.button_nouveau.pack_forget()
         self.button_charger.pack_forget()
         self.sauvegardes_liste.pack_forget()
         self.button_supprimer.pack_forget()
+
+        # Créer et afficher les widgets du combat
         self.combat_frame.pack()
+
+        # Créer les labels si ce n’est pas déjà fait
+        if not hasattr(self, 'label_stats'):
+            self.label_stats = tk.Label(self.combat_frame, text="", justify="left")
+            self.label_stats.pack(pady=10)
+        if not hasattr(self, 'label_ennemi'):
+            self.label_ennemi = tk.Label(self.combat_frame, text="", justify="left")
+            self.label_ennemi.pack(pady=10)
+        if not hasattr(self, 'label_log'):
+            self.label_log = tk.Label(self.combat_frame, text="", justify="left")
+            self.label_log.pack(pady=10)
+
+        # Créer les boutons si ce n’est pas déjà fait
+        if not hasattr(self, 'button_attaquer'):
+            self.button_attaquer = tk.Button(self.combat_frame, text="Attaquer", command=self.attaquer)
+            self.button_attaquer.pack(pady=5)
+        if not hasattr(self, 'button_soin'):
+            self.button_soin = tk.Button(self.combat_frame, text="Soigner", command=self.soin)
+            self.button_soin.pack(pady=5)
+        if not hasattr(self, 'button_quitter'):
+            self.button_quitter = tk.Button(self.combat_frame, text="Quitter", command=self.quitter)
+            self.button_quitter.pack(pady=5)
+
         self.prochain_combat()
 
     def prochain_combat(self):
@@ -339,7 +379,10 @@ class GameGUI:
 
     def choisir_objet(self, obj):
         self.game.joueur.inventaire.append(obj)
-        # Ne pas modifier l'attaque, la défense ou les PV ici
+        if "defense" in obj:
+            self.game.joueur.defense += obj["defense"]
+        if "pv" in obj:
+            self.game.joueur.pv_max += obj["pv"]
         self.choix_frame.pack_forget()
         self.combat_frame.pack()
         self.prochain_combat()
