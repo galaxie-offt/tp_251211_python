@@ -41,13 +41,15 @@ Le jeu propose un système simple de combats au tour par tour : le joueur attaqu
 Dans un terminal ou invite de commande, à la racine du projet :
 
 ```bash
-python main.py
+pip install pillow
+python Part3-Graphique.py
 ```
 
 ou, selon la configuration :
 
 ```bash
-python3 main.py
+pip install pillow
+python3 Part3-Graphique.py
 ```
 
 Une fenêtre Tkinter s'ouvre alors avec l'écran de création de personnage.
