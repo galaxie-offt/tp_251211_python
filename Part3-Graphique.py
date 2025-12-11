@@ -3,6 +3,7 @@ from tkinter import messagebox
 import json
 import os
 import random
+from PIL import Image, ImageTk  # pip install pillow
 
 # Définition des classes et de leurs statistiques
 CLASSES = {
@@ -210,43 +211,155 @@ class GameGUI:
         self.game = GameEngine()
         self.window = tk.Tk()
         self.window.title("Jeu de Combat Graphique")
-        self.window.geometry("600x500")
-        self.create_widgets()
-        self.load_saves()
+        self.window.attributes("-fullscreen", True)
+        self.window.bind("<F11>", self.toggle_fullscreen)
+        self.window.bind("<Escape>", self.exit_fullscreen)
 
-    def create_widgets(self):
-        self.label_joueur = tk.Label(self.window, text="Nom du personnage :")
-        self.label_joueur.pack(pady=10)
-        self.entry_nom = tk.Entry(self.window)
-        self.entry_nom.pack()
+        self.screen_width = self.window.winfo_screenwidth()
+        self.screen_height = self.window.winfo_screenheight()
 
-        self.label_classe = tk.Label(self.window, text="Choisissez une classe :")
-        self.label_classe.pack(pady=10)
+        self.menu_canvas = None
+        self.combat_canvas = None
+        self.hero_img = None
+        self.enemy_imgs = {}
+        self.hero_sprite = None
+        self.enemy_sprite = None
+        self.label_stats = None
+        self.label_ennemi = None
+        self.label_log = None
+        self.button_attaquer = None
+        self.button_soin = None
+        self.button_quitter = None
+        self.choix_frame = None
+        self.fullscreen = True
+
+        # widgets du menu (références gardées pour les callbacks)
+        self.label_titre = None
+        self.label_joueur = None
+        self.entry_nom = None
+        self.label_classe = None
+        self.classe_var = None
+        self.sauvegardes_liste = None
+
+        self.create_menu()
+
+    # ---------- Gestion fenêtre ----------
+
+    def toggle_fullscreen(self, event=None):
+        self.fullscreen = not self.fullscreen
+        self.window.attributes("-fullscreen", self.fullscreen)
+
+    def exit_fullscreen(self, event=None):
+        self.fullscreen = False
+        self.window.attributes("-fullscreen", False)
+
+    # ---------- Menu sur Canvas ----------
+
+    def create_menu(self):
+        self.menu_canvas = tk.Canvas(self.window, highlightthickness=0, bd=0)
+        self.menu_canvas.pack(fill="both", expand=True)
+
+        # image de fond plein écran
+        menu_img = Image.open("assets/menu_bg.png")
+        menu_img = menu_img.resize((self.screen_width, self.screen_height), Image.LANCZOS)
+        self.menu_bg = ImageTk.PhotoImage(menu_img)
+        self.menu_canvas.create_image(0, 0, image=self.menu_bg, anchor="nw")
+
+        # coordonnées du "centre" virtuel du menu
+        panel_x = self.screen_width // 2
+        panel_y = self.screen_height // 2
+
+        # Titre
+        self.label_titre = tk.Label(
+            self.window,
+            text="RPG Combat",
+            font=("Arial", 28, "bold"),
+            bg="#000000",
+            fg="white"
+        )
+        self.menu_canvas.create_window(panel_x, panel_y - 130, window=self.label_titre)
+
+        # Nom du perso
+        self.label_joueur = tk.Label(
+            self.window,
+            text="Nom du personnage :",
+            bg="#000000",
+            fg="white"
+        )
+        self.menu_canvas.create_window(panel_x, panel_y - 80, window=self.label_joueur)
+
+        self.entry_nom = tk.Entry(self.window, width=25, font=("Arial", 12))
+        self.menu_canvas.create_window(panel_x, panel_y - 50, window=self.entry_nom)
+
+        # Choix de classe
+        self.label_classe = tk.Label(
+            self.window,
+            text="Choisissez une classe :",
+            bg="#000000",
+            fg="white"
+        )
+        self.menu_canvas.create_window(panel_x, panel_y - 10, window=self.label_classe)
 
         self.classe_var = tk.StringVar()
-        for classe in CLASSES.keys():
-            rb = tk.Radiobutton(self.window, text=classe, variable=self.classe_var, value=classe)
-            rb.pack()
+        # on utilise trois RadioButtons séparés, chacun posé via create_window
+        y_base = panel_y + 15
+        for i, classe in enumerate(CLASSES.keys()):
+            rb = tk.Radiobutton(
+                self.window,
+                text=classe,
+                variable=self.classe_var,
+                value=classe,
+                bg="#000000",
+                fg="white",
+                selectcolor="#404040",
+                anchor="w"
+            )
+            self.menu_canvas.create_window(panel_x - 60, y_base + i * 25, window=rb, anchor="w")
 
-        self.button_nouveau = tk.Button(self.window, text="Nouvelle partie", command=self.nouvelle_partie)
-        self.button_nouveau.pack(pady=5)
-        self.button_charger = tk.Button(self.window, text="Charger une sauvegarde", command=self.charger_partie)
-        self.button_charger.pack(pady=5)
-        self.sauvegardes_liste = tk.Listbox(self.window)
-        self.sauvegardes_liste.pack(pady=10)
-        self.button_supprimer = tk.Button(self.window, text="Supprimer une sauvegarde", command=self.supprimer_sauvegarde)
-        self.button_supprimer.pack(pady=5)
+        # Boutons Nouvelle partie / Charger
+        button_nouveau = tk.Button(
+            self.window,
+            text="Nouvelle partie",
+            width=18,
+            command=self.nouvelle_partie
+        )
+        button_charger = tk.Button(
+            self.window,
+            text="Charger une sauvegarde",
+            width=18,
+            command=self.charger_partie
+        )
+        self.menu_canvas.create_window(panel_x - 90, panel_y + 110, window=button_nouveau)
+        self.menu_canvas.create_window(panel_x + 90, panel_y + 110, window=button_charger)
 
-        self.combat_frame = tk.Frame(self.window)
-        self.combat_frame.pack_forget()
-        self.choix_frame = tk.Frame(self.window)
-        self.choix_frame.pack_forget()
+        # Liste des sauvegardes
+        label_saves = tk.Label(
+            self.window,
+            text="Sauvegardes :",
+            bg="#000000",
+            fg="white"
+        )
+        self.menu_canvas.create_window(panel_x, panel_y + 150, window=label_saves)
+
+        self.sauvegardes_liste = tk.Listbox(self.window, width=35, height=3)
+        self.menu_canvas.create_window(panel_x, panel_y + 185, window=self.sauvegardes_liste)
+
+        button_supprimer = tk.Button(
+            self.window,
+            text="Supprimer une sauvegarde",
+            command=self.supprimer_sauvegarde
+        )
+        self.menu_canvas.create_window(panel_x, panel_y + 220, window=button_supprimer)
+
+        self.load_saves()
 
     def load_saves(self):
         sauvegardes = [f for f in os.listdir() if f.startswith("sauvegarde_") and f.endswith(".json")]
         self.sauvegardes_liste.delete(0, tk.END)
         for s in sauvegardes:
             self.sauvegardes_liste.insert(tk.END, s)
+
+    # ---------- Actions du menu ----------
 
     def nouvelle_partie(self):
         nom = self.entry_nom.get().strip()
@@ -257,7 +370,6 @@ class GameGUI:
         if not classe:
             messagebox.showerror("Erreur", "Veuillez choisir une classe.")
             return
-
         stats = CLASSES[classe]
         self.game.joueur = Character(nom, stats["pv"], stats["attaque"], stats["defense"])
         self.start_game()
@@ -281,62 +393,89 @@ class GameGUI:
         self.game.supprimer_sauvegarde(fichier)
         self.load_saves()
 
+    # ---------- Écran de combat (inchangé sauf suppression menu_panel) ----------
+
     def start_game(self):
-        # Masquer les widgets du menu
-        self.label_joueur.pack_forget()
-        self.entry_nom.pack_forget()
-        self.label_classe.pack_forget()
-        for widget in self.window.winfo_children():
-            if isinstance(widget, tk.Radiobutton):
-                widget.pack_forget()
-        self.button_nouveau.pack_forget()
-        self.button_charger.pack_forget()
-        self.sauvegardes_liste.pack_forget()
-        self.button_supprimer.pack_forget()
+        # on enlève le canvas de menu
+        self.menu_canvas.pack_forget()
 
-        # Créer et afficher les widgets du combat
-        self.combat_frame.pack()
+        self.combat_canvas = tk.Canvas(self.window, highlightthickness=0, bd=0)
+        self.combat_canvas.pack(fill="both", expand=True)
 
-        # Créer les labels si ce n’est pas déjà fait
-        if not hasattr(self, 'label_stats'):
-            self.label_stats = tk.Label(self.combat_frame, text="", justify="left")
-            self.label_stats.pack(pady=10)
-        if not hasattr(self, 'label_ennemi'):
-            self.label_ennemi = tk.Label(self.combat_frame, text="", justify="left")
-            self.label_ennemi.pack(pady=10)
-        if not hasattr(self, 'label_log'):
-            self.label_log = tk.Label(self.combat_frame, text="", justify="left")
-            self.label_log.pack(pady=10)
+        bg_img = Image.open("assets/combat_bg.gif")
+        bg_img = bg_img.resize((self.screen_width, self.screen_height), Image.LANCZOS)
+        self.combat_bg = ImageTk.PhotoImage(bg_img)
+        self.combat_canvas.create_image(0, 0, image=self.combat_bg, anchor="nw")
 
-        # Créer les boutons si ce n’est pas déjà fait
-        if not hasattr(self, 'button_attaquer'):
-            self.button_attaquer = tk.Button(self.combat_frame, text="Attaquer", command=self.attaquer)
-            self.button_attaquer.pack(pady=5)
-        if not hasattr(self, 'button_soin'):
-            self.button_soin = tk.Button(self.combat_frame, text="Soigner", command=self.soin)
-            self.button_soin.pack(pady=5)
-        if not hasattr(self, 'button_quitter'):
-            self.button_quitter = tk.Button(self.combat_frame, text="Quitter", command=self.quitter)
-            self.button_quitter.pack(pady=5)
+        hero_img = Image.open("assets/hero.png")
+        hero_img = hero_img.resize((128, 128), Image.LANCZOS)
+        self.hero_img = ImageTk.PhotoImage(hero_img)
+
+        self.enemy_imgs = {}
+        enemy_files = {
+            "Gobelin": "assets/gobelin.png",
+            "Orc": "assets/orc.png",
+            "Troll": "assets/troll.png",
+            "Dragon": "assets/dragon.png",
+        }
+        for nom, path in enemy_files.items():
+            img = Image.open(path)
+            img = img.resize((128, 128), Image.LANCZOS)
+            self.enemy_imgs[nom] = ImageTk.PhotoImage(img)
+
+        hero_x = self.screen_width // 4
+        hero_y = int(self.screen_height * 0.65)
+        self.hero_sprite = self.combat_canvas.create_image(hero_x, hero_y, image=self.hero_img)
+        self.enemy_sprite = None
+
+        self.label_stats = tk.Label(self.window, justify="left", bg="black", fg="white")
+        self.label_ennemi = tk.Label(self.window, justify="left", bg="black", fg="white")
+        self.label_log = tk.Label(self.window, justify="left", bg="black", fg="white")
+
+        self.combat_canvas.create_window(self.screen_width * 0.16, self.screen_height * 0.18, window=self.label_stats)
+        self.combat_canvas.create_window(self.screen_width * 0.84, self.screen_height * 0.18, window=self.label_ennemi)
+        self.combat_canvas.create_window(self.screen_width * 0.5,  self.screen_height * 0.8, window=self.label_log)
+
+        self.button_attaquer = tk.Button(self.window, text="Attaquer", width=12, command=self.attaquer)
+        self.button_soin = tk.Button(self.window, text="Soigner", width=12, command=self.soin)
+        self.button_quitter = tk.Button(self.window, text="Quitter", width=12, command=self.quitter)
+
+        self.combat_canvas.create_window(self.screen_width * 0.42, self.screen_height * 0.9, window=self.button_attaquer)
+        self.combat_canvas.create_window(self.screen_width * 0.50, self.screen_height * 0.9, window=self.button_soin)
+        self.combat_canvas.create_window(self.screen_width * 0.58, self.screen_height * 0.9, window=self.button_quitter)
 
         self.prochain_combat()
+
+    # ---------- Reste de la classe identique ----------
 
     def prochain_combat(self):
         if self.game.ennemi_index < len(self.game.ennemis):
             ennemi = self.game.ennemis[self.game.ennemi_index]
             self.game.combat_en_cours = ennemi
-            self.maj_interface()
         elif self.game.victoires == len(self.game.ennemis):
             self.game.combat_en_cours = self.game.boss
-            self.maj_interface()
         else:
             messagebox.showinfo("Fin", "Vous avez vaincu tous les ennemis !")
             self.window.quit()
+            return
+
+        if self.enemy_sprite:
+            self.combat_canvas.delete(self.enemy_sprite)
+        img = self.enemy_imgs.get(self.game.combat_en_cours.nom)
+        if img:
+            enemy_x = int(self.screen_width * 0.75)
+            enemy_y = int(self.screen_height * 0.65)
+            self.enemy_sprite = self.combat_canvas.create_image(enemy_x, enemy_y, image=img)
+
+        self.maj_interface()
 
     def maj_interface(self):
         self.label_stats.config(text=self.game.joueur.afficher_stats())
         if self.game.combat_en_cours:
-            self.label_ennemi.config(text=f"--- {self.game.combat_en_cours.nom} ---\nVie : {self.game.combat_en_cours.pv}\nAttaque : {self.game.combat_en_cours.attaque}\nDéfense : {self.game.combat_en_cours.defense}")
+            e = self.game.combat_en_cours
+            self.label_ennemi.config(
+                text=f"--- {e.nom} ---\nVie : {e.pv}\nAttaque : {e.attaque}\nDéfense : {e.defense}"
+            )
         else:
             self.label_ennemi.config(text="Aucun ennemi en combat")
 
@@ -348,10 +487,11 @@ class GameGUI:
         log = f"{self.game.joueur.nom} inflige {degats} dégâts à {self.game.combat_en_cours.nom}."
         if not self.game.combat_en_cours.is_alive():
             log += f"\n{self.game.combat_en_cours.nom} est vaincu !"
+            self.button_attaquer.config(state="disabled")
+            self.button_soin.config(state="disabled")
             self.game.victoires += 1
             self.game.ennemi_index += 1
             self.game.sauvegarder()
-            # Régénération complète avant le choix d'objet
             self.game.joueur.pv = self.game.joueur.pv_max
             self.choix_objet()
         self.label_log.config(text=log)
@@ -361,22 +501,27 @@ class GameGUI:
         self.ennemi_attaque()
 
     def choix_objet(self):
-        self.combat_frame.pack_forget()
-        self.choix_frame.pack()
-        self.choix_frame.destroy()
-        self.choix_frame = tk.Frame(self.window)
-        self.choix_frame.pack()
+        if self.choix_frame:
+            self.choix_frame.destroy()
+        self.choix_frame = tk.Frame(self.window, bg="#202020")
+        self.combat_canvas.create_window(self.screen_width * 0.5, self.screen_height * 0.5, window=self.choix_frame)
+
+        label = tk.Label(self.choix_frame, text="Choisissez un objet :", bg="#202020", fg="white")
+        label.pack(pady=5)
+
         objets = self.game.generer_objets()
-        for i, obj in enumerate(objets):
+        for obj in objets:
             texte = f"{obj['nom']} : "
             if "attaque" in obj:
-                texte += f"attaque {obj['attaque']} "
+                texte += f"ATT+{obj['attaque']} "
             if "defense" in obj:
-                texte += f"défense {obj['defense']} "
+                texte += f"DEF+{obj['defense']} "
             if "pv" in obj:
-                texte += f"PV {obj['pv']} "
-            bouton = tk.Button(self.choix_frame, text=texte, command=lambda o=obj: self.choisir_objet(o))
-            bouton.pack(pady=5)
+                texte += f"PV+{obj['pv']} "
+            b = tk.Button(self.choix_frame, text=texte, command=lambda o=obj: self.choisir_objet(o))
+            b.pack(pady=3)
+
+
 
     def choisir_objet(self, obj):
         self.game.joueur.inventaire.append(obj)
@@ -384,11 +529,15 @@ class GameGUI:
             self.game.joueur.defense += obj["defense"]
         if "pv" in obj:
             self.game.joueur.pv_max += obj["pv"]
-        # Toujours full vie après le choix d'objet
         self.game.joueur.pv = self.game.joueur.pv_max
 
-        self.choix_frame.pack_forget()
-        self.combat_frame.pack()
+        if self.choix_frame:
+            self.choix_frame.destroy()
+            self.choix_frame = None
+
+        self.maj_interface()
+        self.button_attaquer.config(state="normal")
+        self.button_soin.config(state="normal")
         self.prochain_combat()
 
     def soin(self):
@@ -402,7 +551,9 @@ class GameGUI:
             self.game.joueur.reset_cooldowns()
             self.ennemi_attaque()
         else:
-            self.label_log.config(text=f"Le sort de soin est en recharge ({self.game.joueur.cooldowns['soin']} tours restants).")
+            self.label_log.config(
+                text=f"Le sort de soin est en recharge ({self.game.joueur.cooldowns['soin']} tours restants)."
+            )
 
     def ennemi_attaque(self):
         if not self.game.combat_en_cours or not self.game.joueur.is_alive():
@@ -413,6 +564,8 @@ class GameGUI:
         self.game.sauvegarder()
         if not self.game.joueur.is_alive():
             messagebox.showinfo("Défaite", f"{self.game.joueur.nom} a été vaincu !")
+            self.button_attaquer.config(state="disabled")
+            self.button_soin.config(state="disabled")
             self.window.quit()
 
     def quitter(self):
@@ -422,6 +575,8 @@ class GameGUI:
 
     def run(self):
         self.window.mainloop()
+
+
 
 if __name__ == "__main__":
     app = GameGUI()
