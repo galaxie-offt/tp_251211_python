@@ -79,7 +79,7 @@ class Boss(Enemy):
             degats = max(1, self.attaque * 2 - target.defense)
             target.pv -= degats
             self.cooldowns["ultime"] = 2
-            return f"{self.nom} utilise une attaque ultime et inflige {degâts} dégâts !"
+            return f"{self.nom} utilise une attaque ultime et inflige {degats} dégâts !"
         elif choix == "soin" and self.cooldowns["soin"] == 0:
             soin = 25
             self.pv = min(self.pv_max, self.pv + soin)
@@ -88,7 +88,7 @@ class Boss(Enemy):
         else:
             degats = max(1, self.attaque - target.defense)
             target.pv -= degats
-            return f"{self.nom} utilise une attaque simple et inflige {degâts} dégâts."
+            return f"{self.nom} utilise une attaque simple et inflige {degats} dégâts."
 
 class GameEngine:
     def __init__(self):
@@ -351,6 +351,7 @@ class GameGUI:
             self.game.victoires += 1
             self.game.ennemi_index += 1
             self.game.sauvegarder()
+            # Régénération complète avant le choix d'objet
             self.game.joueur.pv = self.game.joueur.pv_max
             self.choix_objet()
         self.label_log.config(text=log)
@@ -383,6 +384,9 @@ class GameGUI:
             self.game.joueur.defense += obj["defense"]
         if "pv" in obj:
             self.game.joueur.pv_max += obj["pv"]
+        # Toujours full vie après le choix d'objet
+        self.game.joueur.pv = self.game.joueur.pv_max
+
         self.choix_frame.pack_forget()
         self.combat_frame.pack()
         self.prochain_combat()
